@@ -1,0 +1,607 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1.0">
+  <title>Sparks Swim — Absence & Reason Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+  <style>
+    :root {
+      --ink: #0B1F3A; --muted: #5A72A0; --bg: #EAF1FC; --surface: #FFFFFF;
+      --brand: #1454D6; --brand2: #0B2E7A; --brand-dim: #E3ECFC;
+      --madeup: #1D7DE8; --madeup-bg: #E4F0FE; --missed: #D64545; --missed-bg: #FBE7E7;
+      --izin: #7C9CF4; --sakit: #E08A3C; --ops: #9B6BE0; --other: #94A3B8;
+      --border: #D2E0F7; --radius: 10px;
+    }
+    * { box-sizing: border-box; }
+    @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+    body { margin:0; background:var(--bg); color:var(--ink); font-family:'Inter',system-ui,sans-serif; font-size:15px; line-height:1.5; }
+    .wrap { max-width: 1040px; margin: 0 auto; padding: 32px 20px 64px; }
+
+    header.page-head { display:flex; align-items:flex-start; justify-content:space-between; gap:16px; margin-bottom:24px; flex-wrap:wrap; }
+    .brand-block { display:flex; align-items:center; gap:10px; }
+    .brand-mark { width:36px; height:36px; border-radius:10px; background:linear-gradient(135deg,var(--brand),var(--brand2)); display:flex; align-items:center; justify-content:center; font-size:18px; flex-shrink:0; }
+    header.page-head h1 { font-family:'Space Grotesk',sans-serif; font-weight:700; font-size:26px; margin:0; letter-spacing:-0.01em; }
+    header.page-head p { margin:2px 0 0; color:var(--muted); max-width:60ch; font-size:13.5px; }
+
+    .toolbar { display:flex; align-items:center; gap:12px; margin-top:14px; }
+    button.refresh { font-family:'Inter',sans-serif; font-size:13px; font-weight:600; color:var(--brand); background:var(--surface); border:1px solid var(--border); border-radius:999px; padding:8px 16px; cursor:pointer; }
+    button.refresh:hover { border-color:var(--brand); }
+    button.refresh:disabled { opacity:.5; cursor:default; }
+    .status-note { font-size:13px; color:var(--muted); }
+
+    .upload-zone{border:2px dashed var(--border);border-radius:var(--radius);padding:48px 28px;text-align:center;background:var(--surface);margin-top:20px;}
+    .upload-zone .u-title{font-family:'Space Grotesk',sans-serif;font-size:18px;font-weight:700;margin-bottom:8px;}
+    .upload-zone .u-sub{font-size:13px;color:var(--muted);}
+    .upload-zone button{margin-top:16px;font-family:'Inter',sans-serif;font-size:13px;font-weight:700;padding:10px 22px;background:var(--brand);color:#fff;border:none;border-radius:10px;cursor:pointer;}
+
+    .stats { display:flex; background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); overflow:hidden; margin-bottom:26px; }
+    .stat { flex:1; padding:18px 20px; border-right:1px solid var(--border); }
+    .stat:last-child { border-right:none; }
+    .stat .num { font-family:'Space Grotesk',sans-serif; font-size:30px; font-weight:700; line-height:1; color:var(--brand); }
+    .stat .num.madeup { color:var(--madeup); }
+    .stat .num.missed { color:var(--missed); }
+    .stat .lbl { margin-top:6px; color:var(--muted); font-size:13px; }
+
+    .reason-section { margin-bottom:26px; }
+    .reason-head { display:flex; align-items:baseline; gap:10px; margin-bottom:10px; flex-wrap:wrap; }
+    .reason-head h2 { font-family:'Space Grotesk',sans-serif; font-size:17px; font-weight:600; margin:0; }
+    .reason-head .reason-sub { font-size:12.5px; color:var(--muted); }
+    .reason-grid { display:flex; flex-wrap:wrap; gap:10px; }
+    .reason-card { flex:1 1 150px; background:var(--surface); border:1px solid var(--border); border-left:4px solid var(--cat-color,var(--brand)); border-radius:var(--radius); padding:12px 14px; }
+    .reason-card .reason-top { display:flex; align-items:baseline; gap:8px; }
+    .reason-card .reason-pct { font-family:'Space Grotesk',sans-serif; font-weight:700; font-size:20px; color:var(--cat-color,var(--missed)); }
+    .reason-card .reason-count { font-size:12px; color:var(--muted); }
+    .reason-card .reason-label { font-size:12.5px; margin-top:6px; font-weight:600; color:var(--ink); }
+
+    .branch-filter-bar { display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:30px; padding:12px 14px; background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); }
+    .branch-filter-bar .fb-label { font-size:12.5px; font-weight:600; color:var(--muted); margin-right:4px; }
+    button.branch-chip { font-family:'Inter',sans-serif; font-size:12.5px; font-weight:600; border:1px solid var(--border); background:var(--surface); color:var(--muted); border-radius:999px; padding:6px 13px; cursor:pointer; }
+    button.branch-chip.active { background:var(--brand); border-color:var(--brand); color:#fff; }
+
+    section { margin-bottom:34px; }
+    .list-head { display:flex; justify-content:space-between; align-items:baseline; margin-bottom:10px; gap:12px; flex-wrap:wrap; }
+    .list-head h2 { font-family:'Space Grotesk',sans-serif; font-size:17px; font-weight:600; margin:0; }
+    .legend { display:flex; gap:14px; font-size:12px; color:var(--muted); flex-wrap:wrap; }
+    .legend span { display:inline-flex; align-items:center; gap:5px; }
+    .legend i { width:9px; height:9px; border-radius:2px; display:inline-block; }
+    .legend i.izin { background:var(--izin); } .legend i.sakit { background:var(--sakit); }
+    .legend i.ops { background:var(--ops); } .legend i.other { background:var(--other); }
+
+    .week-filter-bar { display:flex; align-items:center; gap:8px; margin-bottom:10px; flex-wrap:wrap; }
+    button.chip { font-family:'Inter',sans-serif; font-size:12.5px; font-weight:600; color:var(--brand); background:var(--brand-dim); border:none; border-radius:999px; padding:6px 12px; cursor:pointer; }
+    button.chip:hover { filter:brightness(0.96); }
+    .selection-note { font-size:12.5px; color:var(--muted); margin-left:auto; }
+
+    .week-list { border-top:2px dashed var(--border); padding-top:4px; }
+    .week-row { border-bottom:1px solid var(--border); }
+    .week-row-main { display:grid; grid-template-columns:22px 128px 1fr 176px; align-items:center; gap:14px; padding:9px 10px; border-radius:8px; }
+    .week-row.selected .week-row-main { background:var(--brand-dim); }
+    .week-row input[type=checkbox] { width:16px; height:16px; accent-color:var(--brand); cursor:pointer; }
+    .week-row-main label.week-check { display:contents; cursor:pointer; }
+    .week-label { font-weight:600; font-size:13.5px; }
+    .week-bar { height:10px; border-radius:5px; background:var(--border); display:flex; overflow:hidden; }
+    .week-bar .seg.izin { background:var(--izin); } .week-bar .seg.sakit { background:var(--sakit); }
+    .week-bar .seg.ops { background:var(--ops); } .week-bar .seg.other { background:var(--other); }
+
+    button.week-counts { text-align:right; font-size:12.5px; color:var(--brand); white-space:nowrap; background:none; border:none; cursor:pointer; font-family:'Inter',sans-serif; padding:2px 4px; text-decoration:underline; text-decoration-color:transparent; }
+    button.week-counts:hover { text-decoration-color:var(--brand); }
+    button.week-counts b { color:var(--ink); font-weight:600; }
+    button.week-counts.empty { color:var(--muted); cursor:default; text-decoration:none; }
+
+    .status-breakdown { display:none; padding:8px 10px 12px 46px; font-size:12.5px; }
+    .status-breakdown.open { display:block; }
+    .status-breakdown table { border-collapse:collapse; width:100%; max-width:480px; }
+    .status-breakdown th, .status-breakdown td { text-align:left; padding:4px 10px 4px 0; color:var(--muted); }
+    .status-breakdown td.count { color:var(--ink); font-weight:600; text-align:right; padding-right:20px; }
+    .status-breakdown th.count { text-align:right; padding-right:20px; }
+
+    .filter-row { display:flex; align-items:center; gap:10px; }
+    input#searchInput { font-family:'Inter',sans-serif; font-size:13px; padding:7px 12px; border:1px solid var(--border); border-radius:999px; background:var(--surface); color:var(--ink); min-width:220px; }
+    .result-count { font-size:12.5px; color:var(--muted); margin:0 0 8px; }
+
+    .student-table-wrap { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); overflow:hidden; overflow-x:auto; }
+    table.student-table { width:100%; border-collapse:collapse; font-size:13px; min-width:560px; }
+    table.student-table th { text-align:left; font-weight:600; color:var(--muted); font-size:11.5px; padding:9px 14px; border-bottom:1px solid var(--border); background:var(--brand-dim); }
+    table.student-table td { padding:9px 14px; border-bottom:1px solid var(--border); vertical-align:middle; }
+    table.student-table tr:last-child td { border-bottom:none; }
+    table.student-table tr.clickable { cursor:pointer; }
+    table.student-table tr.clickable:hover { background:var(--bg); }
+    .key-cell { font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:11.5px; color:var(--muted); }
+    .badge { display:inline-block; padding:2px 8px; border-radius:999px; font-size:11.5px; font-weight:600; }
+    .badge.madeup { background:var(--madeup-bg); color:var(--madeup); }
+    .badge.missed { background:var(--missed-bg); color:var(--missed); }
+    .cat-pill { display:inline-flex; align-items:center; gap:5px; font-size:11px; font-weight:600; padding:2px 8px; border-radius:999px; background:var(--bg); color:var(--ink); }
+    .cat-pill i { width:7px; height:7px; border-radius:50%; display:inline-block; }
+    .mini-bar { display:flex; gap:2px; width:90px; height:8px; border-radius:4px; overflow:hidden; background:var(--border); }
+    .mini-bar span { display:block; height:100%; }
+
+    .state-msg { padding:40px 10px; text-align:center; color:var(--muted); }
+    .state-msg.error { color:var(--missed); }
+    .empty-note { padding:20px 14px; color:var(--muted); font-size:13px; }
+
+    .overlay { position:fixed; inset:0; background:rgba(11,31,58,0.45); backdrop-filter:blur(4px); z-index:500; display:none; align-items:center; justify-content:center; padding:20px; }
+    .overlay.open { display:flex; }
+    .modal { background:var(--surface); border-radius:14px; padding:26px; max-width:640px; width:100%; max-height:82vh; overflow-y:auto; box-shadow:0 20px 60px rgba(11,31,58,0.25); }
+    .m-head { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:14px; gap:10px; }
+    .m-title { font-family:'Space Grotesk',sans-serif; font-size:19px; font-weight:700; }
+    .m-sub { font-size:12.5px; color:var(--muted); margin-top:2px; }
+    .m-close { width:30px; height:30px; border-radius:8px; background:var(--brand-dim); border:none; cursor:pointer; font-size:16px; color:var(--brand); flex-shrink:0; }
+    .m-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:8px; margin-bottom:16px; }
+    .m-stat { background:var(--bg); border-radius:10px; padding:10px 12px; }
+    .m-stat-l { font-size:10.5px; color:var(--muted); font-weight:600; margin-bottom:3px; }
+    .m-stat-v { font-size:16px; font-weight:700; }
+    .m-hist-row { display:flex; align-items:center; justify-content:space-between; gap:10px; padding:8px 0; border-bottom:1px solid var(--border); font-size:12.5px; }
+    .m-hist-row:last-child { border-bottom:none; }
+
+    @media (max-width:620px) {
+      .week-row-main { grid-template-columns:22px 1fr; }
+      .week-row-main .week-bar, .week-row-main button.week-counts { grid-column:2/3; text-align:left; }
+      .stats { flex-direction:column; }
+      .stat { border-right:none; border-bottom:1px solid var(--border); }
+      .stat:last-child { border-bottom:none; }
+      .selection-note { margin-left:0; width:100%; }
+      .m-grid { grid-template-columns:repeat(2,1fr); }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header class="page-head">
+      <div class="brand-block">
+        <div class="brand-mark">🏊</div>
+        <div>
+          <h1>Sparks Swim — Absence &amp; Reason Dashboard</h1>
+          <p>Every absence across branches, why it happened, and whether it was made up within 6 days. Click a student to see their full history.</p>
+        </div>
+      </div>
+    </header>
+    <div class="toolbar">
+      <button class="refresh" id="refreshBtn">🔄 Refresh Data</button>
+      <span class="status-note" id="statusNote"></span>
+    </div>
+
+    <div id="uploadSection" style="display:none;">
+      <div class="upload-zone">
+        <div class="u-title">Couldn't load from Google Sheets</div>
+        <div class="u-sub" id="uploadMsg">Check the sheet's sharing settings, or open the console for details.</div>
+        <button onclick="fetchData()">Try Again</button>
+      </div>
+    </div>
+
+    <div id="content" style="margin-top:20px;">
+      <div class="state-msg" id="loadingMsg">Loading attendance data…</div>
+    </div>
+  </div>
+
+  <div class="overlay" id="overlay" onclick="if(event.target===this) closeModal()">
+    <div class="modal">
+      <div class="m-head">
+        <div><div class="m-title" id="mTitle">Student</div><div class="m-sub" id="mSub"></div></div>
+        <button class="m-close" onclick="closeModal()">×</button>
+      </div>
+      <div id="mBody"></div>
+    </div>
+  </div>
+
+<script>
+// =====================================================================
+// CONFIG — fill these in for your workbook
+// =====================================================================
+// The "Compiled Attendance" tab written by CompileAttendance_SparksSwim.gs
+// (compileAttendance()). This sheet must be shared as "Anyone with the
+// link" (Viewer) for the CSV export URL below to work from a static page.
+//   1. Open the master spreadsheet > Share > General access > Anyone with the link.
+//   2. Open the "Compiled Attendance" tab, copy its gid from the URL bar
+//      (the number after #gid=).
+//   3. Paste the spreadsheet ID and gid below.
+const MASTER_SHEET_ID  = '1K6w1TnAMjvkfo32Ze-3GlhUOhlsZAcUoZrfTF52LiUE';
+const MASTER_SHEET_GID = '1865764517';
+const MASTER_CSV = `https://docs.google.com/spreadsheets/d/${MASTER_SHEET_ID}/gviz/tq?tqx=out:csv&gid=${MASTER_SHEET_GID}`;
+
+// Must mirror CompileAttendance_SparksSwim.gs exactly — if you change the
+// COL layout, REASON_RULES, or MAKEUP_WINDOW_DAYS in the .gs file, update
+// them here too, since this page reimplements that logic in the browser.
+const COL = { BRANCH:0, UNIQUE_KEY:2, STUDENT_NAME:3, DATE:5, SESSION_TYPE:7, STATUS:9 }; // 0-indexed here (COL.X - 1 from the .gs)
+const STATUS_COMPLETED = 'Completed';
+const SESSION_TYPE_REGULAR = 'Regular';
+const SESSION_TYPE_MAKEUP = 'Make-up';
+const MAKEUP_WINDOW_DAYS = 6;
+const DASHBOARD_START_DATE = '2025-09-01';
+const REASON_RULES = [
+  { category: 'Izin',             match: /izin|permission|leave|cuti/i },
+  { category: 'Sakit',            match: /sakit|sick|ill|demam|fever/i },
+  { category: 'Ops Cancellation', match: /ops|cancel(l)?ed by (branch|center|pusat)|pool closed|weather|maintenance/i },
+];
+const REASON_OTHER = 'Other';
+const REASON_CATEGORIES = ['Izin','Sakit','Ops Cancellation','Other'];
+function categorizeReason(raw) {
+  const s = String(raw || '').trim();
+  if (!s) return REASON_OTHER;
+  for (const r of REASON_RULES) if (r.match.test(s)) return r.category;
+  return REASON_OTHER;
+}
+
+const LOAD_TIMEOUT_MS = 25000;
+const CAT_COLOR = { 'Izin':'var(--izin)', 'Sakit':'var(--sakit)', 'Ops Cancellation':'var(--ops)', 'Other':'var(--other)' };
+
+// =====================================================================
+// STATE
+// =====================================================================
+let DASHBOARD = null;
+let ALL_RECORDS = [];
+let selectedWeeks = new Set();
+let selectedBranches = new Set();
+let openBreakdownWeek = null;
+
+// =====================================================================
+// DATE HELPERS
+// =====================================================================
+function getWeekBounds(anyDateInWeek) {
+  const d = new Date(anyDateInWeek); d.setHours(0,0,0,0);
+  const day = d.getDay();
+  const diffToMonday = day === 0 ? -6 : 1 - day;
+  const weekStart = new Date(d); weekStart.setDate(d.getDate() + diffToMonday);
+  const weekEnd = new Date(weekStart); weekEnd.setDate(weekStart.getDate() + 6); weekEnd.setHours(23,59,59,999);
+  return { weekStart, weekEnd };
+}
+function formatDateKey(d) {
+  return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+}
+function parseSheetDate(val) {
+  if (val === null || val === undefined || val === '') return null;
+  if (val instanceof Date) return val;
+  const s = String(val).trim();
+  // Google Sheets "Date(2025,8,16)" gviz literal, if it ever leaks through as text
+  let m = s.match(/^Date\((\d+),(\d+),(\d+)\)$/);
+  if (m) return new Date(+m[1], +m[2], +m[3]);
+  const nd = new Date(s);
+  if (!isNaN(nd)) return nd;
+  return null;
+}
+
+// =====================================================================
+// LOAD + PARSE
+// =====================================================================
+function withTimeout(startFn, onSettle) {
+  let settled = false;
+  const t = setTimeout(() => { if (settled) return; settled = true; onSettle({ timedOut:true }); }, LOAD_TIMEOUT_MS);
+  startFn(res => { if (settled) return; settled = true; clearTimeout(t); onSettle({ timedOut:false, ...res }); });
+}
+
+function fetchData() {
+  document.getElementById('uploadSection').style.display = 'none';
+  document.getElementById('content').innerHTML = '<div class="state-msg" id="loadingMsg">Loading attendance data…</div>';
+  document.getElementById('statusNote').textContent = '';
+  withTimeout(
+    done => Papa.parse(MASTER_CSV, { download:true, skipEmptyLines:true,
+      complete(res){ done({ ok:true, res }); }, error(){ done({ ok:false }); } }),
+    outcome => {
+      if (outcome.timedOut) { showUploadFallback('Google Sheets tidak merespons (timeout). Cek pengaturan share sheet.'); return; }
+      if (!outcome.ok || !outcome.res.data.length) { showUploadFallback('Tidak bisa memuat dari Google Sheets. Cek MASTER_SHEET_ID / GID dan sharing settings.'); return; }
+      try {
+        processRows(outcome.res.data);
+        document.getElementById('statusNote').textContent = '🔄 Updated ' + new Date().toLocaleTimeString();
+      } catch (e) {
+        console.error(e);
+        showUploadFallback('Gagal memproses data: ' + e.message);
+      }
+    }
+  );
+}
+function showUploadFallback(msg) {
+  document.getElementById('content').innerHTML = '';
+  document.getElementById('uploadMsg').textContent = msg;
+  document.getElementById('uploadSection').style.display = 'block';
+}
+
+// Rebuild the same shape getDashboardData() returned in the Apps Script version
+function processRows(rows) {
+  // row 0 is the header ("Branch", ...source headers) written by compileAttendance()
+  const dataRows = rows.slice(1);
+
+  const makeupsByKey = {};
+  dataRows.forEach(row => {
+    const sessionType = String(row[COL.SESSION_TYPE] || '').trim();
+    const status = String(row[COL.STATUS] || '').trim();
+    const date = parseSheetDate(row[COL.DATE]);
+    if (!date) return;
+    if (sessionType.toLowerCase() === SESSION_TYPE_MAKEUP.toLowerCase() && status.toLowerCase() === STATUS_COMPLETED.toLowerCase()) {
+      const key = row[COL.UNIQUE_KEY];
+      (makeupsByKey[key] = makeupsByKey[key] || []).push(date);
+    }
+  });
+  Object.values(makeupsByKey).forEach(arr => arr.sort((a,b) => a - b));
+
+  const absences = [];
+  dataRows.forEach(row => {
+    const sessionType = String(row[COL.SESSION_TYPE] || '').trim();
+    const status = String(row[COL.STATUS] || '').trim();
+    const date = parseSheetDate(row[COL.DATE]);
+    if (!date) return;
+    if (sessionType.toLowerCase() !== SESSION_TYPE_REGULAR.toLowerCase()) return;
+    if (status.toLowerCase() === STATUS_COMPLETED.toLowerCase()) return;
+    absences.push({
+      branch: row[COL.BRANCH], name: row[COL.STUDENT_NAME], key: row[COL.UNIQUE_KEY],
+      date, status, category: categorizeReason(status),
+    });
+  });
+  absences.sort((a,b) => a.date - b.date);
+
+  const usedMakeup = {};
+  absences.forEach(a => {
+    const candidates = makeupsByKey[a.key] || [];
+    a.makeupDate = null; a.daysLate = null;
+    for (const mDate of candidates) {
+      const usedKey = a.key + '|' + mDate.getTime();
+      if (usedMakeup[usedKey] || mDate <= a.date) continue;
+      const diffDays = Math.round((mDate - a.date) / 86400000);
+      if (diffDays <= MAKEUP_WINDOW_DAYS) { a.makeupDate = mDate; a.daysLate = diffDays; usedMakeup[usedKey] = true; break; }
+    }
+    a.madeUp = !!a.makeupDate;
+  });
+
+  const startBounds = getWeekBounds(new Date(DASHBOARD_START_DATE));
+  const endBounds = getWeekBounds(new Date());
+  const weeks = []; const weekIndexByKey = {}; const details = {};
+  let cursor = new Date(startBounds.weekStart);
+  while (cursor <= endBounds.weekEnd) {
+    const wb = getWeekBounds(cursor);
+    const key = formatDateKey(wb.weekStart);
+    weekIndexByKey[key] = weeks.length;
+    weeks.push({ key, start: wb.weekStart.toISOString(), end: wb.weekEnd.toISOString(), total:0, madeUp:0, notMadeUp:0 });
+    details[key] = [];
+    cursor.setDate(cursor.getDate() + 7);
+  }
+
+  const branchesSet = new Set();
+  absences.forEach(a => {
+    if (a.branch) branchesSet.add(a.branch);
+    if (a.date < startBounds.weekStart || a.date > endBounds.weekEnd) return;
+    const wKey = formatDateKey(getWeekBounds(a.date).weekStart);
+    const idx = weekIndexByKey[wKey];
+    if (idx === undefined) return;
+    const bucket = weeks[idx];
+    bucket.total++;
+    if (a.madeUp) bucket.madeUp++; else bucket.notMadeUp++;
+    details[wKey].push({
+      branch: a.branch, name: a.name, key: a.key, absenceDate: a.date.toISOString(),
+      status: a.status, category: a.category,
+      makeupDate: a.makeupDate ? a.makeupDate.toISOString() : null, daysLate: a.daysLate, madeUp: a.madeUp,
+    });
+  });
+
+  DASHBOARD = {
+    startDate: startBounds.weekStart.toISOString(), endDate: endBounds.weekEnd.toISOString(),
+    windowDays: MAKEUP_WINDOW_DAYS, branches: [...branchesSet].sort(), weeks, details,
+  };
+  ALL_RECORDS = flattenRecords(DASHBOARD);
+  selectedWeeks = new Set(DASHBOARD.weeks.map(w => w.key));
+  selectedBranches = new Set(DASHBOARD.branches);
+  openBreakdownWeek = null;
+  buildLayout();
+  renderBranchFilter();
+  renderWeeks();
+  renderStatsAndTable();
+}
+
+// =====================================================================
+// RENDERING (same as the Apps Script version)
+// =====================================================================
+function flattenRecords(data) {
+  const out = [];
+  data.weeks.forEach(week => (data.details[week.key] || []).forEach(r => out.push(Object.assign({}, r, { weekKey: week.key, weekLabel: weekLabel(week) }))));
+  return out;
+}
+function escapeHtml(s) { const d = document.createElement('div'); d.textContent = s == null ? '' : String(s); return d.innerHTML; }
+function fmtDate(iso, opts) { return new Date(iso).toLocaleDateString('en-GB', opts || { day:'numeric', month:'short' }); }
+function weekLabel(week) {
+  const start = new Date(week.start), end = new Date(week.end);
+  const sameMonth = start.getMonth() === end.getMonth();
+  const startStr = fmtDate(week.start, { day:'numeric', month:'short' });
+  const endStr = sameMonth ? fmtDate(week.end, { day:'numeric' }) : fmtDate(week.end, { day:'numeric', month:'short' });
+  return startStr + '\u2013' + endStr + ' \'' + String(end.getFullYear()).slice(2);
+}
+
+function buildLayout() {
+  document.getElementById('content').innerHTML =
+    '<div class="stats" id="statsStrip"></div>' +
+    '<div class="reason-section"><div class="reason-head"><h2>Absence reasons</h2><span class="reason-sub">% of absences in selected weeks &amp; branches</span></div><div class="reason-grid" id="reasonGrid"></div></div>' +
+    '<div class="branch-filter-bar" id="branchFilterBar"></div>' +
+    '<section><div class="list-head"><h2>By week</h2><div class="legend"><span><i class="izin"></i>Izin</span><span><i class="sakit"></i>Sakit</span><span><i class="ops"></i>Ops Cancellation</span><span><i class="other"></i>Other</span></div></div>' +
+      '<div class="week-filter-bar"><button class="chip" id="selectAllBtn">All weeks</button><button class="chip" id="last4Btn">Last 4 weeks</button><button class="chip" id="last8Btn">Last 8 weeks</button><button class="chip" id="clearBtn">None</button><span class="selection-note" id="selectionNote"></span></div>' +
+      '<div class="week-list" id="weekList"></div></section>' +
+    '<section><div class="list-head"><h2>By student</h2><div class="filter-row"><input id="searchInput" type="text" placeholder="Search student or branch"></div></div>' +
+      '<p class="result-count" id="resultCount"></p><div class="student-table-wrap" id="studentTableWrap"></div></section>';
+
+  document.getElementById('searchInput').addEventListener('input', renderTable);
+  document.getElementById('selectAllBtn').addEventListener('click', () => { selectedWeeks = new Set(DASHBOARD.weeks.map(w => w.key)); renderWeeks(); renderStatsAndTable(); });
+  document.getElementById('clearBtn').addEventListener('click', () => { selectedWeeks = new Set(); renderWeeks(); renderStatsAndTable(); });
+  document.getElementById('last4Btn').addEventListener('click', () => selectLastN(4));
+  document.getElementById('last8Btn').addEventListener('click', () => selectLastN(8));
+}
+
+function renderBranchFilter() {
+  const el = document.getElementById('branchFilterBar');
+  let html = '<span class="fb-label">Branches:</span>';
+  DASHBOARD.branches.forEach(b => { html += `<button class="branch-chip${selectedBranches.has(b)?' active':''}" data-branch="${escapeHtml(b)}">${escapeHtml(b)}</button>`; });
+  el.innerHTML = html;
+  el.querySelectorAll('.branch-chip').forEach(chip => chip.addEventListener('click', () => {
+    const b = chip.dataset.branch;
+    if (selectedBranches.has(b)) selectedBranches.delete(b); else selectedBranches.add(b);
+    chip.classList.toggle('active'); renderWeeks(); renderStatsAndTable();
+  }));
+}
+function selectLastN(n) {
+  const keys = DASHBOARD.weeks.map(w => w.key);
+  selectedWeeks = new Set(keys.slice(Math.max(0, keys.length - n)));
+  renderWeeks(); renderStatsAndTable();
+}
+function recordsForWeek(weekKey) { return ALL_RECORDS.filter(r => r.weekKey === weekKey && selectedBranches.has(r.branch)); }
+
+function renderWeeks() {
+  const el = document.getElementById('weekList');
+  const weeks = DASHBOARD.weeks.slice().reverse();
+  let html = '';
+  weeks.forEach(week => {
+    const recs = recordsForWeek(week.key);
+    const total = recs.length;
+    const segs = { 'Izin':0,'Sakit':0,'Ops Cancellation':0,'Other':0 };
+    recs.forEach(r => segs[r.category] = (segs[r.category]||0) + 1);
+    const checked = selectedWeeks.has(week.key);
+    const isOpen = openBreakdownWeek === week.key;
+    let barHtml = '';
+    if (total > 0) ['Izin','Sakit','Ops Cancellation','Other'].forEach(c => {
+      const cls = {Izin:'izin',Sakit:'sakit','Ops Cancellation':'ops',Other:'other'}[c];
+      const pct = (segs[c] / total) * 100;
+      if (pct > 0) barHtml += `<span class="seg ${cls}" style="width:${pct}%"></span>`;
+    });
+    html += `<div class="week-row${checked?' selected':''}" data-week="${week.key}">
+      <div class="week-row-main">
+        <label class="week-check">
+          <input type="checkbox" data-key="${week.key}"${checked?' checked':''}>
+          <span class="week-label">${weekLabel(week)}</span>
+          <span class="week-bar">${barHtml}</span>
+        </label>
+        ${total>0 ? `<button class="week-counts" data-week="${week.key}"><b>${total}</b> absence${total===1?'':'s'}</button>` : `<button class="week-counts empty" disabled>No absences</button>`}
+      </div>
+      <div class="status-breakdown${isOpen?' open':''}" id="breakdown-${week.key}"></div>
+    </div>`;
+  });
+  el.innerHTML = html;
+  el.querySelectorAll('input[type=checkbox]').forEach(box => box.addEventListener('change', () => {
+    const key = box.dataset.key;
+    if (box.checked) selectedWeeks.add(key); else selectedWeeks.delete(key);
+    box.closest('.week-row').classList.toggle('selected', box.checked);
+    renderStatsAndTable(); updateSelectionNote();
+  }));
+  el.querySelectorAll('button.week-counts[data-week]').forEach(btn => btn.addEventListener('click', () => toggleBreakdown(btn.dataset.week)));
+  if (openBreakdownWeek) fillBreakdown(openBreakdownWeek);
+  updateSelectionNote();
+}
+function toggleBreakdown(weekKey) {
+  const panel = document.getElementById('breakdown-' + weekKey);
+  if (openBreakdownWeek === weekKey) { openBreakdownWeek = null; panel.classList.remove('open'); return; }
+  if (openBreakdownWeek) { const prev = document.getElementById('breakdown-' + openBreakdownWeek); if (prev) prev.classList.remove('open'); }
+  openBreakdownWeek = weekKey; fillBreakdown(weekKey); panel.classList.add('open');
+}
+function fillBreakdown(weekKey) {
+  const panel = document.getElementById('breakdown-' + weekKey);
+  if (!panel) return;
+  const recs = recordsForWeek(weekKey);
+  const counts = {};
+  recs.forEach(r => counts[r.category] = (counts[r.category]||0) + 1);
+  const labels = Object.keys(counts).sort((a,b) => counts[b]-counts[a]);
+  if (!labels.length) { panel.innerHTML = '<em style="color:var(--muted)">No absences in the selected branches.</em>'; return; }
+  let html = '<table><thead><tr><th>Reason</th><th class="count">Count</th></tr></thead><tbody>';
+  labels.forEach(l => html += `<tr><td>${escapeHtml(l)}</td><td class="count">${counts[l]}</td></tr>`);
+  panel.innerHTML = html + '</tbody></table>';
+}
+function updateSelectionNote() {
+  const note = document.getElementById('selectionNote');
+  if (!note) return;
+  note.textContent = `${selectedWeeks.size} of ${DASHBOARD.weeks.length} weeks \u00b7 ${selectedBranches.size} of ${DASHBOARD.branches.length} branches selected`;
+}
+function renderStatsAndTable() { renderStats(); renderReasonBreakdown(); renderTable(); }
+function inSelection(r) { return selectedWeeks.has(r.weekKey) && selectedBranches.has(r.branch); }
+
+function renderReasonBreakdown() {
+  const recs = ALL_RECORDS.filter(inSelection);
+  const total = recs.length;
+  const counts = { 'Izin':0,'Sakit':0,'Ops Cancellation':0,'Other':0 };
+  recs.forEach(r => counts[r.category] = (counts[r.category]||0) + 1);
+  const grid = document.getElementById('reasonGrid');
+  if (total === 0) { grid.innerHTML = '<div class="empty-note">No absences in the selected weeks/branches.</div>'; return; }
+  let html = '';
+  REASON_CATEGORIES.forEach(label => {
+    const count = counts[label] || 0;
+    const pct = total > 0 ? Math.round((count/total)*1000)/10 : 0;
+    html += `<div class="reason-card" style="--cat-color:${CAT_COLOR[label]}">
+      <div class="reason-top"><span class="reason-pct">${pct}%</span><span class="reason-count">${count} of ${total}</span></div>
+      <div class="reason-label">${escapeHtml(label)}</div></div>`;
+  });
+  grid.innerHTML = html;
+}
+function renderStats() {
+  const recs = ALL_RECORDS.filter(inSelection);
+  const total = recs.length;
+  const madeUp = recs.filter(r => r.madeUp).length;
+  const notMadeUp = total - madeUp;
+  const rate = total > 0 ? Math.round((madeUp/total)*1000)/10 : 0;
+  document.getElementById('statsStrip').innerHTML =
+    `<div class="stat"><div class="num">${total}</div><div class="lbl">Total absences (selected weeks &amp; branches)</div></div>
+     <div class="stat"><div class="num madeup">${madeUp}</div><div class="lbl">Made up within ${DASHBOARD.windowDays} days</div></div>
+     <div class="stat"><div class="num missed">${notMadeUp}</div><div class="lbl">No makeup in time</div></div>
+     <div class="stat"><div class="num">${rate}%</div><div class="lbl">Makeup rate</div></div>`;
+}
+function studentSummariesInSelection() {
+  const recs = ALL_RECORDS.filter(inSelection);
+  const byKey = {};
+  recs.forEach(r => {
+    if (!byKey[r.key]) byKey[r.key] = { key:r.key, name:r.name, branch:r.branch, total:0, madeUp:0, notMadeUp:0, byCategory:{'Izin':0,'Sakit':0,'Ops Cancellation':0,'Other':0}, records:[] };
+    const s = byKey[r.key];
+    s.total++;
+    if (r.madeUp) s.madeUp++; else s.notMadeUp++;
+    s.byCategory[r.category] = (s.byCategory[r.category]||0) + 1;
+    s.records.push(r);
+  });
+  Object.values(byKey).forEach(s => s.records.sort((a,b) => new Date(b.absenceDate) - new Date(a.absenceDate)));
+  return Object.values(byKey).sort((a,b) => b.total - a.total);
+}
+function renderTable() {
+  const search = (document.getElementById('searchInput').value || '').trim().toLowerCase();
+  const students = studentSummariesInSelection().filter(s => !search || (s.name + ' ' + s.branch).toLowerCase().includes(search));
+  document.getElementById('resultCount').textContent = `${students.length} student${students.length===1?'':'s'} with absences${search ? ' matching "'+search+'"' : ''}`;
+  const wrap = document.getElementById('studentTableWrap');
+  if (!students.length) { wrap.innerHTML = '<div class="empty-note">No matching students.</div>'; return; }
+  let html = '<table class="student-table"><thead><tr><th>Student</th><th>Branch</th><th>Total absences</th><th>Reason mix</th><th>Made up</th></tr></thead><tbody>';
+  students.forEach(s => {
+    let barHtml = '';
+    REASON_CATEGORIES.forEach(c => {
+      const pct = s.total ? (s.byCategory[c]/s.total)*100 : 0;
+      if (pct > 0) barHtml += `<span style="width:${pct}%;background:${CAT_COLOR[c]}"></span>`;
+    });
+    html += `<tr class="clickable" data-key="${escapeHtml(s.key)}">
+      <td>${escapeHtml(s.name)}<div class="key-cell">${escapeHtml(s.key)}</div></td>
+      <td>${escapeHtml(s.branch)}</td><td>${s.total}</td>
+      <td><div class="mini-bar">${barHtml}</div></td>
+      <td><span class="badge madeup">${s.madeUp}</span> / <span class="badge missed">${s.notMadeUp}</span></td></tr>`;
+  });
+  wrap.innerHTML = html + '</tbody></table>';
+  const byKey = {}; students.forEach(s => byKey[s.key] = s);
+  wrap.querySelectorAll('tr.clickable').forEach(row => row.addEventListener('click', () => openStudentModal(byKey[row.dataset.key])));
+}
+function openStudentModal(s) {
+  document.getElementById('mTitle').textContent = s.name;
+  document.getElementById('mSub').textContent = s.branch + ' \u00b7 ' + s.key;
+  const gridHtml = `<div class="m-grid">
+    <div class="m-stat"><div class="m-stat-l">Total absences</div><div class="m-stat-v">${s.total}</div></div>
+    <div class="m-stat"><div class="m-stat-l">Made up</div><div class="m-stat-v" style="color:var(--madeup);">${s.madeUp}</div></div>
+    <div class="m-stat"><div class="m-stat-l">Not made up</div><div class="m-stat-v" style="color:var(--missed);">${s.notMadeUp}</div></div>
+    <div class="m-stat"><div class="m-stat-l">Makeup rate</div><div class="m-stat-v">${s.total?Math.round(s.madeUp/s.total*100):0}%</div></div></div>`;
+  const reasonHtml = '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px;">' +
+    REASON_CATEGORIES.map(c => `<span class="cat-pill"><i style="background:${CAT_COLOR[c]}"></i>${c}: ${s.byCategory[c]||0}</span>`).join('') + '</div>';
+  const histHtml = s.records.map(r => {
+    const outcome = r.madeUp ? `<span class="badge madeup">Made up, ${r.daysLate}d later</span>` : `<span class="badge missed">No makeup</span>`;
+    return `<div class="m-hist-row"><span><strong>${fmtDate(r.absenceDate,{day:'numeric',month:'short',year:'numeric'})}</strong></span>
+      <span class="cat-pill"><i style="background:${CAT_COLOR[r.category]}"></i>${escapeHtml(r.category)}</span>
+      <span style="color:var(--muted);flex:1;text-align:left;padding-left:6px;">${escapeHtml(r.status)}</span>${outcome}</div>`;
+  }).join('');
+  document.getElementById('mBody').innerHTML = gridHtml + reasonHtml +
+    '<div style="font-size:11.5px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px;">Absence history</div>' + histHtml;
+  document.getElementById('overlay').classList.add('open');
+}
+function closeModal() { document.getElementById('overlay').classList.remove('open'); }
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
+
+document.getElementById('refreshBtn').addEventListener('click', fetchData);
+window.addEventListener('DOMContentLoaded', () => {
+  fetchData();
+  setInterval(fetchData, 5 * 60 * 1000); // auto-refresh every 5 min, same as the retention dashboard
+});
+</script>
+</body>
+</html>
