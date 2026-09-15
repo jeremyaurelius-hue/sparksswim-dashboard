@@ -51,7 +51,9 @@
     .reason-head h2 { font-family:'Space Grotesk',sans-serif; font-size:17px; font-weight:600; margin:0; }
     .reason-head .reason-sub { font-size:12.5px; color:var(--muted); }
     .reason-grid { display:flex; flex-wrap:wrap; gap:10px; }
-    .reason-card { flex:1 1 150px; background:var(--surface); border:1px solid var(--border); border-left:4px solid var(--cat-color,var(--brand)); border-radius:var(--radius); padding:12px 14px; }
+    .reason-card { flex:1 1 150px; background:var(--surface); border:1px solid var(--border); border-left:4px solid var(--cat-color,var(--brand)); border-radius:var(--radius); padding:12px 14px; cursor:pointer; text-align:left; font:inherit; color:inherit; appearance:none; -webkit-appearance:none; margin:0; transition:opacity .1s; }
+    .reason-card:hover { border-color:var(--cat-color,var(--brand)); }
+    .reason-card.inactive { opacity:.4; }
     .reason-card .reason-top { display:flex; align-items:baseline; gap:8px; }
     .reason-card .reason-pct { font-family:'Space Grotesk',sans-serif; font-weight:700; font-size:20px; color:var(--cat-color,var(--missed)); }
     .reason-card .reason-count { font-size:12px; color:var(--muted); }
@@ -70,12 +72,6 @@
     button.branch-chip { font-family:'Inter',sans-serif; font-size:12.5px; font-weight:600; border:1px solid var(--border); background:var(--surface); color:var(--muted); border-radius:999px; padding:6px 13px; cursor:pointer; }
     button.branch-chip.active { background:var(--brand); border-color:var(--brand); color:#fff; }
 
-    .reason-filter-bar { display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:14px; padding:12px 14px; background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); }
-    .reason-filter-bar .fb-label { font-size:12.5px; font-weight:600; color:var(--muted); margin-right:4px; }
-    button.reason-chip { font-family:'Inter',sans-serif; font-size:12.5px; font-weight:600; border:1px solid var(--border); background:var(--surface); color:var(--muted); border-radius:999px; padding:6px 13px 6px 11px; cursor:pointer; display:inline-flex; align-items:center; gap:6px; }
-    button.reason-chip i { width:8px; height:8px; border-radius:50%; display:inline-block; background:var(--cat-color,var(--muted)); }
-    button.reason-chip.active { background:var(--cat-color,var(--brand)); border-color:var(--cat-color,var(--brand)); color:#fff; }
-    button.reason-chip.active i { background:#fff; }
     .min-abs-field { display:flex; align-items:center; gap:6px; font-size:12.5px; color:var(--muted); font-weight:600; margin-left:auto; }
     .min-abs-field input { width:56px; font-family:'Inter',sans-serif; font-size:13px; padding:6px 8px; border:1px solid var(--border); border-radius:8px; background:var(--surface); color:var(--ink); }
 
@@ -250,9 +246,10 @@ const CAT_COLOR = { 'Izin':'var(--izin)', 'Sakit':'var(--sakit)', 'Ops Cancellat
 // =====================================================================
 let DASHBOARD = null;
 let ALL_RECORDS = [];
+let ALL_STATUSES = [];
 let selectedWeeks = new Set();
 let selectedBranches = new Set();
-let selectedReasons = new Set();
+let selectedStatuses = new Set();
 let openBreakdownWeek = null;
 
 // =====================================================================
@@ -397,13 +394,15 @@ function processRows(rows) {
     windowDays: MAKEUP_WINDOW_DAYS, branches: [...branchesSet].sort(), weeks, details,
   };
   ALL_RECORDS = flattenRecords(DASHBOARD);
+  const statusCounts = {};
+  ALL_RECORDS.forEach(r => { const label = statusLabel(r); statusCounts[label] = (statusCounts[label] || 0) + 1; });
+  ALL_STATUSES = Object.keys(statusCounts).sort((a, b) => statusCounts[b] - statusCounts[a]);
   selectedWeeks = new Set(DASHBOARD.weeks.map(w => w.key));
   selectedBranches = new Set(DASHBOARD.branches);
-  selectedReasons = new Set(REASON_CATEGORIES);
+  selectedStatuses = new Set(ALL_STATUSES);
   openBreakdownWeek = null;
   buildLayout();
   renderBranchFilter();
-  renderReasonFilter();
   renderWeeks();
   renderStatsAndTable();
 }
@@ -417,6 +416,7 @@ function flattenRecords(data) {
   return out;
 }
 function escapeHtml(s) { const d = document.createElement('div'); d.textContent = s == null ? '' : String(s); return d.innerHTML; }
+function statusLabel(r) { const s = (r.status || '').trim(); return s || '(blank)'; }
 function fmtDate(iso, opts) { return new Date(iso).toLocaleDateString('en-GB', opts || { day:'numeric', month:'short' }); }
 function weekLabel(week) {
   const start = new Date(week.start), end = new Date(week.end);
@@ -429,10 +429,9 @@ function weekLabel(week) {
 function buildLayout() {
   document.getElementById('content').innerHTML =
     '<div class="stats" id="statsStrip"></div>' +
-    '<div class="reason-section"><div class="reason-head"><h2>Absence reasons</h2><span class="reason-sub">% of absences in selected weeks, branches &amp; reasons</span></div><div class="reason-grid" id="reasonGrid"></div></div>' +
+    '<div class="reason-section"><div class="reason-head"><h2>Absence reasons</h2><span class="reason-sub">% of absences in selected weeks &amp; branches — click a card to filter by that reason</span><button class="chip" id="resetReasonsBtn" style="margin-left:auto;">All reasons</button></div><div class="reason-grid" id="reasonGrid"></div></div>' +
     '<div class="reason-section"><div class="reason-head"><h2>Absence frequency</h2><span class="reason-sub">How many students had 1, 2, 3... absences (selected weeks, branches &amp; reasons)</span></div><div id="freqList"></div></div>' +
     '<div class="branch-filter-bar" id="branchFilterBar"></div>' +
-    '<div class="reason-filter-bar" id="reasonFilterBar"></div>' +
     '<section><div class="list-head"><h2>By week</h2><div class="legend"><span><i class="izin"></i>Izin</span><span><i class="sakit"></i>Sakit</span><span><i class="ops"></i>Ops Cancellation</span><span><i class="other"></i>Other</span></div></div>' +
       '<div class="week-filter-bar"><button class="chip" id="selectAllBtn">All weeks</button><button class="chip" id="last4Btn">Last 4 weeks</button><button class="chip" id="last8Btn">Last 8 weeks</button><button class="chip" id="last13Btn">Last 3 months</button><button class="chip" id="clearBtn">None</button><span class="selection-note" id="selectionNote"></span></div>' +
       '<div class="week-list" id="weekList"></div></section>' +
@@ -446,6 +445,7 @@ function buildLayout() {
   document.getElementById('last4Btn').addEventListener('click', () => selectLastN(4));
   document.getElementById('last8Btn').addEventListener('click', () => selectLastN(8));
   document.getElementById('last13Btn').addEventListener('click', () => selectLastN(13)); // ~13 weeks ≈ 3 months
+  document.getElementById('resetReasonsBtn').addEventListener('click', () => { selectedStatuses = new Set(ALL_STATUSES); renderWeeks(); renderStatsAndTable(); });
 }
 
 function renderBranchFilter() {
@@ -459,32 +459,12 @@ function renderBranchFilter() {
     chip.classList.toggle('active'); renderWeeks(); renderStatsAndTable();
   }));
 }
-function renderReasonFilter() {
-  const el = document.getElementById('reasonFilterBar');
-  const clsMap = { 'Izin':'izin', 'Sakit':'sakit', 'Ops Cancellation':'ops', 'Other':'other' };
-  let html = '<span class="fb-label">Absence reason:</span>';
-  REASON_CATEGORIES.forEach(cat => {
-    html += `<button class="reason-chip${selectedReasons.has(cat)?' active':''}" data-reason="${escapeHtml(cat)}" style="--cat-color:${CAT_COLOR[cat]}"><i></i>${escapeHtml(cat)}</button>`;
-  });
-  html += '<button class="chip" id="reasonAllBtn" style="margin-left:4px;">All reasons</button>';
-  el.innerHTML = html;
-  el.querySelectorAll('.reason-chip').forEach(chip => chip.addEventListener('click', () => {
-    const r = chip.dataset.reason;
-    if (selectedReasons.has(r)) selectedReasons.delete(r); else selectedReasons.add(r);
-    chip.classList.toggle('active');
-    renderWeeks(); renderStatsAndTable();
-  }));
-  document.getElementById('reasonAllBtn').addEventListener('click', () => {
-    selectedReasons = new Set(REASON_CATEGORIES);
-    renderReasonFilter(); renderWeeks(); renderStatsAndTable();
-  });
-}
 function selectLastN(n) {
   const keys = DASHBOARD.weeks.map(w => w.key);
   selectedWeeks = new Set(keys.slice(Math.max(0, keys.length - n)));
   renderWeeks(); renderStatsAndTable();
 }
-function recordsForWeek(weekKey) { return ALL_RECORDS.filter(r => r.weekKey === weekKey && selectedBranches.has(r.branch) && selectedReasons.has(r.category)); }
+function recordsForWeek(weekKey) { return ALL_RECORDS.filter(r => r.weekKey === weekKey && selectedBranches.has(r.branch) && selectedStatuses.has(statusLabel(r))); }
 
 function renderWeeks() {
   const el = document.getElementById('weekList');
@@ -547,35 +527,41 @@ function fillBreakdown(weekKey) {
 function updateSelectionNote() {
   const note = document.getElementById('selectionNote');
   if (!note) return;
-  note.textContent = `${selectedWeeks.size} of ${DASHBOARD.weeks.length} weeks \u00b7 ${selectedBranches.size} of ${DASHBOARD.branches.length} branches \u00b7 ${selectedReasons.size} of ${REASON_CATEGORIES.length} reasons selected`;
+  note.textContent = `${selectedWeeks.size} of ${DASHBOARD.weeks.length} weeks \u00b7 ${selectedBranches.size} of ${DASHBOARD.branches.length} branches \u00b7 ${selectedStatuses.size} of ${ALL_STATUSES.length} reasons selected`;
 }
 function renderStatsAndTable() { renderStats(); renderReasonBreakdown(); renderFrequencyDistribution(); renderTable(); }
-function inSelection(r) { return selectedWeeks.has(r.weekKey) && selectedBranches.has(r.branch) && selectedReasons.has(r.category); }
+function inSelection(r) { return selectedWeeks.has(r.weekKey) && selectedBranches.has(r.branch) && selectedStatuses.has(statusLabel(r)); }
 
 // Detailed reason breakdown — uses the raw Status text from the sheet
 // (e.g. "Sakit - Rescheduled", "Tidak hadir", "Freeze"), not the 4-bucket
 // category, so every distinct status value your team actually uses shows
 // up as its own card, most common first.
 function renderReasonBreakdown() {
-  const recs = ALL_RECORDS.filter(inSelection);
+  // Base pool is weeks+branches only (not the reason/status selection itself),
+  // so percentages stay stable as a reference while cards act as filter toggles.
+  const recs = ALL_RECORDS.filter(r => selectedWeeks.has(r.weekKey) && selectedBranches.has(r.branch));
   const total = recs.length;
   const grid = document.getElementById('reasonGrid');
-  if (total === 0) { grid.innerHTML = '<div class="empty-note">No absences match the selected weeks, branches &amp; reasons.</div>'; return; }
+  if (total === 0) { grid.innerHTML = '<div class="empty-note">No absences match the selected weeks &amp; branches.</div>'; return; }
   const counts = {};
-  recs.forEach(r => {
-    const label = (r.status && r.status.trim()) ? r.status.trim() : '(blank)';
-    counts[label] = (counts[label] || 0) + 1;
-  });
+  recs.forEach(r => { const label = statusLabel(r); counts[label] = (counts[label] || 0) + 1; });
   const labels = Object.keys(counts).sort((a, b) => counts[b] - counts[a]);
   let html = '';
   labels.forEach(label => {
     const count = counts[label];
     const pct = Math.round((count / total) * 1000) / 10;
-    html += `<div class="reason-card">
+    const active = selectedStatuses.has(label);
+    const catColor = CAT_COLOR[categorizeReason(label)];
+    html += `<button type="button" class="reason-card${active ? '' : ' inactive'}" data-status="${escapeHtml(label)}" style="--cat-color:${catColor}">
       <div class="reason-top"><span class="reason-pct">${pct}%</span><span class="reason-count">${count} of ${total}</span></div>
-      <div class="reason-label">${escapeHtml(label)}</div></div>`;
+      <div class="reason-label">${escapeHtml(label)}</div></button>`;
   });
   grid.innerHTML = html;
+  grid.querySelectorAll('.reason-card').forEach(card => card.addEventListener('click', () => {
+    const s = card.dataset.status;
+    if (selectedStatuses.has(s)) selectedStatuses.delete(s); else selectedStatuses.add(s);
+    renderWeeks(); renderStatsAndTable();
+  }));
 }
 
 // How many students had 1, 2, 3 ... absences (10+ grouped into one bucket),
@@ -641,7 +627,7 @@ function renderTable() {
   const students = studentSummariesInSelection()
     .filter(s => s.total >= minAbs)
     .filter(s => !search || (s.name + ' ' + s.branch).toLowerCase().includes(search));
-  const reasonNote = selectedReasons.size === REASON_CATEGORIES.length ? '' : ` \u00b7 reason: ${[...selectedReasons].join(', ') || 'none selected'}`;
+  const reasonNote = selectedStatuses.size === ALL_STATUSES.length ? '' : ` \u00b7 reason: ${[...selectedStatuses].join(', ') || 'none selected'}`;
   const minNote = minAbs > 1 ? ` \u00b7 \u2265 ${minAbs} absence${minAbs===1?'':'s'}` : '';
   document.getElementById('resultCount').textContent = `${students.length} student${students.length===1?'':'s'} with absences${search ? ' matching "'+search+'"' : ''}${minNote}${reasonNote}`;
   const wrap = document.getElementById('studentTableWrap');
