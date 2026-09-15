@@ -70,6 +70,15 @@
     button.branch-chip { font-family:'Inter',sans-serif; font-size:12.5px; font-weight:600; border:1px solid var(--border); background:var(--surface); color:var(--muted); border-radius:999px; padding:6px 13px; cursor:pointer; }
     button.branch-chip.active { background:var(--brand); border-color:var(--brand); color:#fff; }
 
+    .reason-filter-bar { display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:14px; padding:12px 14px; background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); }
+    .reason-filter-bar .fb-label { font-size:12.5px; font-weight:600; color:var(--muted); margin-right:4px; }
+    button.reason-chip { font-family:'Inter',sans-serif; font-size:12.5px; font-weight:600; border:1px solid var(--border); background:var(--surface); color:var(--muted); border-radius:999px; padding:6px 13px 6px 11px; cursor:pointer; display:inline-flex; align-items:center; gap:6px; }
+    button.reason-chip i { width:8px; height:8px; border-radius:50%; display:inline-block; background:var(--cat-color,var(--muted)); }
+    button.reason-chip.active { background:var(--cat-color,var(--brand)); border-color:var(--cat-color,var(--brand)); color:#fff; }
+    button.reason-chip.active i { background:#fff; }
+    .min-abs-field { display:flex; align-items:center; gap:6px; font-size:12.5px; color:var(--muted); font-weight:600; margin-left:auto; }
+    .min-abs-field input { width:56px; font-family:'Inter',sans-serif; font-size:13px; padding:6px 8px; border:1px solid var(--border); border-radius:8px; background:var(--surface); color:var(--ink); }
+
     section { margin-bottom:34px; }
     .list-head { display:flex; justify-content:space-between; align-items:baseline; margin-bottom:10px; gap:12px; flex-wrap:wrap; }
     .list-head h2 { font-family:'Space Grotesk',sans-serif; font-size:17px; font-weight:600; margin:0; }
@@ -243,6 +252,7 @@ let DASHBOARD = null;
 let ALL_RECORDS = [];
 let selectedWeeks = new Set();
 let selectedBranches = new Set();
+let selectedReasons = new Set();
 let openBreakdownWeek = null;
 
 // =====================================================================
@@ -389,9 +399,11 @@ function processRows(rows) {
   ALL_RECORDS = flattenRecords(DASHBOARD);
   selectedWeeks = new Set(DASHBOARD.weeks.map(w => w.key));
   selectedBranches = new Set(DASHBOARD.branches);
+  selectedReasons = new Set(REASON_CATEGORIES);
   openBreakdownWeek = null;
   buildLayout();
   renderBranchFilter();
+  renderReasonFilter();
   renderWeeks();
   renderStatsAndTable();
 }
@@ -417,20 +429,23 @@ function weekLabel(week) {
 function buildLayout() {
   document.getElementById('content').innerHTML =
     '<div class="stats" id="statsStrip"></div>' +
-    '<div class="reason-section"><div class="reason-head"><h2>Absence reasons</h2><span class="reason-sub">% of absences in selected weeks &amp; branches</span></div><div class="reason-grid" id="reasonGrid"></div></div>' +
-    '<div class="reason-section"><div class="reason-head"><h2>Absence frequency</h2><span class="reason-sub">How many students had 1, 2, 3... absences (selected weeks &amp; branches)</span></div><div id="freqList"></div></div>' +
+    '<div class="reason-section"><div class="reason-head"><h2>Absence reasons</h2><span class="reason-sub">% of absences in selected weeks, branches &amp; reasons</span></div><div class="reason-grid" id="reasonGrid"></div></div>' +
+    '<div class="reason-section"><div class="reason-head"><h2>Absence frequency</h2><span class="reason-sub">How many students had 1, 2, 3... absences (selected weeks, branches &amp; reasons)</span></div><div id="freqList"></div></div>' +
     '<div class="branch-filter-bar" id="branchFilterBar"></div>' +
+    '<div class="reason-filter-bar" id="reasonFilterBar"></div>' +
     '<section><div class="list-head"><h2>By week</h2><div class="legend"><span><i class="izin"></i>Izin</span><span><i class="sakit"></i>Sakit</span><span><i class="ops"></i>Ops Cancellation</span><span><i class="other"></i>Other</span></div></div>' +
-      '<div class="week-filter-bar"><button class="chip" id="selectAllBtn">All weeks</button><button class="chip" id="last4Btn">Last 4 weeks</button><button class="chip" id="last8Btn">Last 8 weeks</button><button class="chip" id="clearBtn">None</button><span class="selection-note" id="selectionNote"></span></div>' +
+      '<div class="week-filter-bar"><button class="chip" id="selectAllBtn">All weeks</button><button class="chip" id="last4Btn">Last 4 weeks</button><button class="chip" id="last8Btn">Last 8 weeks</button><button class="chip" id="last13Btn">Last 3 months</button><button class="chip" id="clearBtn">None</button><span class="selection-note" id="selectionNote"></span></div>' +
       '<div class="week-list" id="weekList"></div></section>' +
-    '<section><div class="list-head"><h2>By student</h2><div class="filter-row"><input id="searchInput" type="text" placeholder="Search student or branch"></div></div>' +
+    '<section><div class="list-head"><h2>By student</h2><div class="filter-row"><input id="searchInput" type="text" placeholder="Search student or branch"><label class="min-abs-field">Min absences<input id="minAbsInput" type="number" min="1" step="1" value="1"></label></div></div>' +
       '<p class="result-count" id="resultCount"></p><div class="student-table-wrap" id="studentTableWrap"></div></section>';
 
   document.getElementById('searchInput').addEventListener('input', renderTable);
+  document.getElementById('minAbsInput').addEventListener('input', renderTable);
   document.getElementById('selectAllBtn').addEventListener('click', () => { selectedWeeks = new Set(DASHBOARD.weeks.map(w => w.key)); renderWeeks(); renderStatsAndTable(); });
   document.getElementById('clearBtn').addEventListener('click', () => { selectedWeeks = new Set(); renderWeeks(); renderStatsAndTable(); });
   document.getElementById('last4Btn').addEventListener('click', () => selectLastN(4));
   document.getElementById('last8Btn').addEventListener('click', () => selectLastN(8));
+  document.getElementById('last13Btn').addEventListener('click', () => selectLastN(13)); // ~13 weeks ≈ 3 months
 }
 
 function renderBranchFilter() {
@@ -444,12 +459,32 @@ function renderBranchFilter() {
     chip.classList.toggle('active'); renderWeeks(); renderStatsAndTable();
   }));
 }
+function renderReasonFilter() {
+  const el = document.getElementById('reasonFilterBar');
+  const clsMap = { 'Izin':'izin', 'Sakit':'sakit', 'Ops Cancellation':'ops', 'Other':'other' };
+  let html = '<span class="fb-label">Absence reason:</span>';
+  REASON_CATEGORIES.forEach(cat => {
+    html += `<button class="reason-chip${selectedReasons.has(cat)?' active':''}" data-reason="${escapeHtml(cat)}" style="--cat-color:${CAT_COLOR[cat]}"><i></i>${escapeHtml(cat)}</button>`;
+  });
+  html += '<button class="chip" id="reasonAllBtn" style="margin-left:4px;">All reasons</button>';
+  el.innerHTML = html;
+  el.querySelectorAll('.reason-chip').forEach(chip => chip.addEventListener('click', () => {
+    const r = chip.dataset.reason;
+    if (selectedReasons.has(r)) selectedReasons.delete(r); else selectedReasons.add(r);
+    chip.classList.toggle('active');
+    renderWeeks(); renderStatsAndTable();
+  }));
+  document.getElementById('reasonAllBtn').addEventListener('click', () => {
+    selectedReasons = new Set(REASON_CATEGORIES);
+    renderReasonFilter(); renderWeeks(); renderStatsAndTable();
+  });
+}
 function selectLastN(n) {
   const keys = DASHBOARD.weeks.map(w => w.key);
   selectedWeeks = new Set(keys.slice(Math.max(0, keys.length - n)));
   renderWeeks(); renderStatsAndTable();
 }
-function recordsForWeek(weekKey) { return ALL_RECORDS.filter(r => r.weekKey === weekKey && selectedBranches.has(r.branch)); }
+function recordsForWeek(weekKey) { return ALL_RECORDS.filter(r => r.weekKey === weekKey && selectedBranches.has(r.branch) && selectedReasons.has(r.category)); }
 
 function renderWeeks() {
   const el = document.getElementById('weekList');
@@ -512,10 +547,10 @@ function fillBreakdown(weekKey) {
 function updateSelectionNote() {
   const note = document.getElementById('selectionNote');
   if (!note) return;
-  note.textContent = `${selectedWeeks.size} of ${DASHBOARD.weeks.length} weeks \u00b7 ${selectedBranches.size} of ${DASHBOARD.branches.length} branches selected`;
+  note.textContent = `${selectedWeeks.size} of ${DASHBOARD.weeks.length} weeks \u00b7 ${selectedBranches.size} of ${DASHBOARD.branches.length} branches \u00b7 ${selectedReasons.size} of ${REASON_CATEGORIES.length} reasons selected`;
 }
 function renderStatsAndTable() { renderStats(); renderReasonBreakdown(); renderFrequencyDistribution(); renderTable(); }
-function inSelection(r) { return selectedWeeks.has(r.weekKey) && selectedBranches.has(r.branch); }
+function inSelection(r) { return selectedWeeks.has(r.weekKey) && selectedBranches.has(r.branch) && selectedReasons.has(r.category); }
 
 // Detailed reason breakdown — uses the raw Status text from the sheet
 // (e.g. "Sakit - Rescheduled", "Tidak hadir", "Freeze"), not the 4-bucket
@@ -525,7 +560,7 @@ function renderReasonBreakdown() {
   const recs = ALL_RECORDS.filter(inSelection);
   const total = recs.length;
   const grid = document.getElementById('reasonGrid');
-  if (total === 0) { grid.innerHTML = '<div class="empty-note">No absences in the selected weeks/branches.</div>'; return; }
+  if (total === 0) { grid.innerHTML = '<div class="empty-note">No absences match the selected weeks, branches &amp; reasons.</div>'; return; }
   const counts = {};
   recs.forEach(r => {
     const label = (r.status && r.status.trim()) ? r.status.trim() : '(blank)';
@@ -548,7 +583,7 @@ function renderReasonBreakdown() {
 function renderFrequencyDistribution() {
   const students = studentSummariesInSelection();
   const el = document.getElementById('freqList');
-  if (!students.length) { el.innerHTML = '<div class="empty-note">No absences in the selected weeks/branches.</div>'; return; }
+  if (!students.length) { el.innerHTML = '<div class="empty-note">No absences match the selected weeks, branches &amp; reasons.</div>'; return; }
 
   const buckets = {}; // '1' -> count of students, ... '10+' -> count
   for (let i = 1; i <= 9; i++) buckets[String(i)] = 0;
@@ -601,8 +636,14 @@ function studentSummariesInSelection() {
 }
 function renderTable() {
   const search = (document.getElementById('searchInput').value || '').trim().toLowerCase();
-  const students = studentSummariesInSelection().filter(s => !search || (s.name + ' ' + s.branch).toLowerCase().includes(search));
-  document.getElementById('resultCount').textContent = `${students.length} student${students.length===1?'':'s'} with absences${search ? ' matching "'+search+'"' : ''}`;
+  const minAbsRaw = parseInt(document.getElementById('minAbsInput').value, 10);
+  const minAbs = Number.isFinite(minAbsRaw) && minAbsRaw > 0 ? minAbsRaw : 1;
+  const students = studentSummariesInSelection()
+    .filter(s => s.total >= minAbs)
+    .filter(s => !search || (s.name + ' ' + s.branch).toLowerCase().includes(search));
+  const reasonNote = selectedReasons.size === REASON_CATEGORIES.length ? '' : ` \u00b7 reason: ${[...selectedReasons].join(', ') || 'none selected'}`;
+  const minNote = minAbs > 1 ? ` \u00b7 \u2265 ${minAbs} absence${minAbs===1?'':'s'}` : '';
+  document.getElementById('resultCount').textContent = `${students.length} student${students.length===1?'':'s'} with absences${search ? ' matching "'+search+'"' : ''}${minNote}${reasonNote}`;
   const wrap = document.getElementById('studentTableWrap');
   if (!students.length) { wrap.innerHTML = '<div class="empty-note">No matching students.</div>'; return; }
   let html = '<table class="student-table"><thead><tr><th>Student</th><th>Branch</th><th>Total absences</th><th>Reason mix</th><th>Made up</th></tr></thead><tbody>';
