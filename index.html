@@ -334,6 +334,7 @@ select:focus,input:focus{outline:none;border-color:var(--accent);background-colo
     <div class="filter-bar">
       <span class="fl">Filter</span>
       <div class="ms-wrap" id="fBranchMS"></div>
+      <select id="fMonth" onchange="applyFilters()"><option value="">Semua Bulan</option></select>
       <select id="fAgeGroup" onchange="applyFilters()"><option value="">Semua Usia</option></select>
       <select id="fRetStatus" onchange="applyFilters()"><option value="">Semua Status</option></select>
       <select id="fPkg" onchange="applyFilters()"><option value="">Semua Paket</option></select>
@@ -458,14 +459,14 @@ const HEADERS = {
   fpDate:'FP Date', fpAmount:'FP Amount', typePayment:'Type Payment',
   totalActualPayment:'Total Actual Payment', center:'Center', fromRet:'From Ret', toRet:'To Ret',
   lastClassDate:'Last Class Date', numSessions:'Number of sessions', coachName:'Coach Name',
-  attendancePct:'Attendance %'
+  attendancePct:'Attendance %', month:'Month'
 };
 const FALLBACK_IDX = {
   branch:0, cycle:1, uniqueKey:2, sparksId:3, status:4, name:5, gender:6, birthDate:7,
   parentsName:8, phone:9, saAcq:10, ageNow:18, ageGroup:19, saRet:20, retStatus:21,
   churnReason:22, responseNotes:23, joinDateRet:24, retPackage:25, lastMemDate:27,
   actualLastMemDate:28, fpDate:29, fpAmount:30, typePayment:32, totalActualPayment:33,
-  center:36, fromRet:37, toRet:38, lastClassDate:39, numSessions:42, coachName:45, attendancePct:46
+  center:36, fromRet:37, toRet:38, lastClassDate:39, month:40, numSessions:42, coachName:45, attendancePct:46
 };
 
 const STATUS_COLOR = {
@@ -574,6 +575,7 @@ function processMainRows(rows) {
       churnReason: get(row,'churnReason'),
       retPackage: get(row,'retPackage'),
       toRet: get(row,'toRet'),
+      month: get(row,'month'),
       center: get(row,'center'),
       totalActualPayment: num(get(row,'totalActualPayment')),
       attendancePct: get(row,'attendancePct'),
@@ -623,11 +625,13 @@ document.addEventListener('click', () => document.querySelectorAll('.ms-panel').
 
 function initFilters() {
   const branches = uniqSorted(ALL.map(d=>d.branch));
+  const months   = uniqSorted(ALL.map(d=>d.month));
   const ages     = uniqSorted(ALL.map(d=>d.ageGroup));
   const statuses = uniqSorted(ALL.map(d=>d.retStatus));
   const pkgs     = uniqSorted(ALL.map(d=>d.retPackage));
   const sas      = uniqSorted(ALL.map(d=>d.saRet));
   const pop = (id, vals, label) => { document.getElementById(id).innerHTML = `<option value="">Semua ${label}</option>` + vals.map(v=>`<option value="${v}">${v}</option>`).join(''); };
+  pop('fMonth', months, 'Bulan');
   pop('fAgeGroup', ages, 'Usia');
   pop('fRetStatus', statuses, 'Status');
   pop('fPkg', pkgs, 'Paket');
@@ -636,6 +640,7 @@ function initFilters() {
 }
 
 function resetFilters() {
+  document.getElementById('fMonth').value = '';
   document.getElementById('fAgeGroup').value = '';
   document.getElementById('fRetStatus').value = '';
   document.getElementById('fPkg').value = '';
@@ -647,6 +652,7 @@ function resetFilters() {
 }
 
 function applyFilters() {
+  const mo = document.getElementById('fMonth').value;
   const ag = document.getElementById('fAgeGroup').value;
   const rs = document.getElementById('fRetStatus').value;
   const pk = document.getElementById('fPkg').value;
@@ -654,6 +660,7 @@ function applyFilters() {
   const q  = (document.getElementById('fSearch').value||'').trim().toLowerCase();
   const data = ALL.filter(d =>
     selectedBranches.has(d.branch) &&
+    (!mo || d.month === mo) &&
     (!ag || d.ageGroup === ag) &&
     (!rs || d.retStatus === rs) &&
     (!pk || d.retPackage === pk) &&
