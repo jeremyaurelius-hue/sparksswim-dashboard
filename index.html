@@ -779,6 +779,15 @@ window.addEventListener('DOMContentLoaded', () => {
   setInterval(loadAll, 5 * 60 * 1000);
 });
 
+// Expose functions referenced by inline onclick/onchange attributes in the
+// markup — needed because this whole script is wrapped in an IIFE, so plain
+// function declarations above are NOT globally visible by default.
+window.loadAll = loadAll;
+window.resetFilters = resetFilters;
+window.applyFilters = applyFilters;
+window.handleFile = handleFile;
+window.handleDrop = handleDrop;
+
 })();
 
 </script>
@@ -1262,6 +1271,11 @@ window.addEventListener('DOMContentLoaded', () => {
   fetchData();
   setInterval(fetchData, 5 * 60 * 1000); // auto-refresh every 5 min, same as the retention dashboard
 });
+
+// Expose functions referenced by inline onclick attributes in the markup —
+// needed because this whole script is wrapped in an IIFE.
+window.fetchData = fetchData;
+window.closeModal = closeModal;
 
 })();
 
