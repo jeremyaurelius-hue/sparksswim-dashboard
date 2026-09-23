@@ -469,15 +469,27 @@ const FALLBACK_IDX = {
   center:36, fromRet:37, toRet:38, lastClassDate:39, month:40, numSessions:42, coachName:45, attendancePct:46
 };
 
+// Explicit, literal colors for every known Retention Status value. These must
+// be literal hex/rgb — NOT CSS var(--x) references — because Chart.js draws
+// to a <canvas>, and canvas fillStyle cannot resolve CSS custom properties
+// (it silently falls back to black when it can't parse the color).
 const STATUS_COLOR = {
-  'paid': 'var(--green)',
-  'churn': 'var(--red)',
-  'still unsure': 'var(--amber)',
-  'asked - still no response': 'var(--text3)',
-  'confirm to retain (not paid yet)': 'var(--blue)',
+  'paid': '#0d9e5c',
+  'churn': '#e03131',
+  'still unsure': '#d97706',
+  'asked - still no response': '#9ba3bd',
+  'confirm to retain (not paid yet)': '#2563eb',
   'potential churn (still possible to retain)': '#f97316',
+  '(kosong)': '#cbd5e1',
+  'not yet asked': '#a855f7',
+  'connected': '#db2777',
+  'drop - can not retain': '#65a30d',
+  'drop - unpaid installment': '#0ea5e9',
 };
-const PALETTE = ['#0d9e5c','#e03131','#d97706','#2563eb','#7c3aed','#f97316','#0ea5e9','#9ba3bd','#db2777','#65a30d'];
+// Fallback palette for any status not explicitly listed above. Deliberately
+// excludes green and red so an unmapped status can never be confused with
+// the dedicated Paid (green) / Churn (red) colors.
+const PALETTE = ['#d97706','#2563eb','#7c3aed','#f97316','#0ea5e9','#9ba3bd','#db2777','#65a30d','#a855f7','#cbd5e1'];
 function colorFor(label, idx) {
   const key = (label||'').trim().toLowerCase();
   return STATUS_COLOR[key] || PALETTE[idx % PALETTE.length];
@@ -714,13 +726,13 @@ function renderMetrics(data) {
   const paid = data.filter(isStatus('paid')).length;
   const churn = data.filter(isStatus('churn')).length;
   const pending = total - paid - churn;
-  const rate = (paid+churn) ? Math.round(paid/(paid+churn)*100) : 0;
+  const rate = total ? Math.round(paid/total*100) : 0;
   const revenue = data.reduce((a,d)=>a+d.totalActualPayment,0);
   const cards = [
     { cls:'c-blue',  icon:'👥', val: total.toLocaleString(), label:'Total Siswa', sub:'sesuai filter aktif' },
     { cls:'c-green', icon:'✅', val: paid.toLocaleString(),  label:'Retained (Paid)', sub: total?Math.round(paid/total*100)+'% dari total':'' },
     { cls:'c-red',   icon:'❌', val: churn.toLocaleString(), label:'Churn', sub: total?Math.round(churn/total*100)+'% dari total':'' },
-    { cls:'c-amber', icon:'📈', val: rate+'%',                label:'Retention Rate', sub:'Paid ÷ (Paid + Churn)' },
+    { cls:'c-amber', icon:'📈', val: rate+'%',                label:'Retention Rate', sub:'Paid ÷ Total Siswa' },
     { cls:'c-purple',icon:'⏳', val: pending.toLocaleString(),label:'Belum Diputuskan', sub:'unsure / no response / potential' },
   ];
   document.getElementById('metricsGrid').innerHTML = cards.map(c => `
